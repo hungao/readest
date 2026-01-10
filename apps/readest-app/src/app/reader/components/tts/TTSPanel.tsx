@@ -11,13 +11,16 @@ import { TranslationFunc, useTranslation } from '@/hooks/useTranslation';
 import { useSettingsStore } from '@/store/settingsStore';
 import { useDefaultIconSize, useResponsiveSize } from '@/hooks/useResponsiveSize';
 import { getLanguageName } from '@/utils/lang';
+import { FoliateView } from '@/types/view';
 
 type TTSPanelProps = {
   bookKey: string;
+  bookTitle?: string;
   ttsLang: string;
   isPlaying: boolean;
   timeoutOption: number;
   timeoutTimestamp: number;
+  view?: FoliateView;
   onTogglePlay: () => void;
   onBackward: () => void;
   onForward: () => void;
@@ -103,10 +106,12 @@ const getCountdownTime = (timeout: number) => {
 
 const TTSPanel = ({
   bookKey,
+  bookTitle,
   ttsLang,
   isPlaying,
   timeoutOption,
   timeoutTimestamp,
+  view,
   onTogglePlay,
   onBackward,
   onForward,

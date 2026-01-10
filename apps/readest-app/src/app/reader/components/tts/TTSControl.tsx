@@ -338,7 +338,7 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
       if (!oneTime) {
         setShowIndicator(true);
       }
-      const ttsController = new TTSController(appService, view, !!user?.id);
+      const ttsController = new TTSController(appService, view, !!user?.id, bookKey);
       ttsControllerRef.current = ttsController;
       setTtsController(ttsController);
 
@@ -682,10 +682,12 @@ const TTSControl: React.FC<TTSControlProps> = ({ bookKey, gridInsets }) => {
         >
           <TTSPanel
             bookKey={bookKey}
+            bookTitle={getBookData(bookKey)?.title}
             ttsLang={ttsLang}
             isPlaying={isPlaying}
             timeoutOption={timeoutOption}
             timeoutTimestamp={timeoutTimestamp}
+            view={getView(bookKey)}
             onTogglePlay={handleTogglePlay}
             onBackward={handleBackward}
             onForward={handleForward}

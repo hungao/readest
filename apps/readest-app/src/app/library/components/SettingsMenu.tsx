@@ -5,6 +5,7 @@ import { PiUserCircle, PiUserCircleCheck, PiGear } from 'react-icons/pi';
 import { PiSun, PiMoon } from 'react-icons/pi';
 import { TbSunMoon } from 'react-icons/tb';
 import { MdCloudSync } from 'react-icons/md';
+import { FiDatabase } from 'react-icons/fi';
 
 import { invoke, PermissionState } from '@tauri-apps/api/core';
 import { isTauriAppPlatform, isWebAppPlatform } from '@/services/environment';
@@ -29,6 +30,7 @@ import UserAvatar from '@/components/UserAvatar';
 import MenuItem from '@/components/MenuItem';
 import Quota from '@/components/Quota';
 import Menu from '@/components/Menu';
+import CacheSettings from './CacheSettings';
 
 interface SettingsMenuProps {
   setIsDropdownOpen?: (isOpen: boolean) => void;
@@ -61,6 +63,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   const [savedBookCoverForLockScreen, setSavedBookCoverForLockScreen] = useState(
     settings.savedBookCoverForLockScreen || '',
   );
+  const [showCacheSettings, setShowCacheSettings] = useState(false);
   const iconSize = useResponsiveSize(16);
 
   const { stats, hasActiveTransfers, setIsTransferQueueOpen } = useTransferQueue();
@@ -184,6 +187,11 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
     setSettingsDialogOpen(true);
   };
 
+  const openCacheSettings = () => {
+    setIsDropdownOpen?.(false);
+    setShowCacheSettings(true);
+  };
+
   const handleSetSavedBookCoverForLockScreen = async () => {
     if (!(await requestStoragePermission()) && appService?.distChannel === 'readest') return;
 
@@ -230,6 +238,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   const savedBookCoverDescription = `💾 ${coverDir}/last-book-cover.png`;
 
   return (
+    <>
     <Menu
       className={clsx(
         'settings-menu dropdown-content no-triangle',
@@ -345,6 +354,12 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
         onClick={cycleThemeMode}
       />
       <MenuItem label={_('Settings')} Icon={PiGear} onClick={openSettingsDialog} />
+      <MenuItem
+        label={_('TTS Cache Settings')}
+        Icon={FiDatabase}
+        description={_('Manage VieNeu-TTS cache')}
+        onClick={openCacheSettings}
+      />
       {appService?.canCustomizeRootDir && (
         <>
           <hr aria-hidden='true' className='border-base-200 my-1' />
@@ -381,6 +396,17 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
         onClick={toggleTelemetry}
       />
     </Menu>
+    {showCacheSettings && (
+      <dialog open className='modal modal-open'>
+        <div className='modal-box max-w-4xl'>
+          <CacheSettings onClose={() => setShowCacheSettings(false)} />
+        </div>
+        <form method='dialog' className='modal-backdrop' onClick={() => setShowCacheSettings(false)}>
+          <button>close</button>
+        </form>
+      </dialog>
+    )}
+  </>
   );
 };
 

@@ -45,3 +45,5 @@ fastlane/report.xml
 
 # nix
 result*
+
+/apps/readest-app/tts-cache

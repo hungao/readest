@@ -7,6 +7,7 @@ import { createRejectFilter } from '@/utils/node';
 import { WebSpeechClient } from './WebSpeechClient';
 import { NativeTTSClient } from './NativeTTSClient';
 import { EdgeTTSClient } from './EdgeTTSClient';
+import { VieNeuTTSClient } from './VieNeuTTSClient';
 import { TTSUtils } from './TTSUtils';
 import { TTSClient } from './TTSClient';
 
@@ -26,6 +27,7 @@ export class TTSController extends EventTarget {
   appService: AppService | null = null;
   view: FoliateView;
   isAuthenticated: boolean = false;
+  bookKey: string = '_default';
   #nossmlCnt: number = 0;
   #currentSpeakAbortController: AbortController | null = null;
   #currentSpeakPromise: Promise<void> | null = null;
@@ -37,20 +39,29 @@ export class TTSController extends EventTarget {
   ttsWebClient: TTSClient;
   ttsEdgeClient: TTSClient;
   ttsNativeClient: TTSClient | null = null;
+  ttsVieNeuClient: TTSClient | null = null;
   ttsWebVoices: TTSVoice[] = [];
   ttsEdgeVoices: TTSVoice[] = [];
   ttsNativeVoices: TTSVoice[] = [];
+  ttsVieNeuVoices: TTSVoice[] = [];
   ttsTargetLang: string = '';
 
   options: TTSHighlightOptions = { style: 'highlight', color: 'gray' };
 
-  constructor(appService: AppService | null, view: FoliateView, isAuthenticated: boolean = false) {
+  constructor(appService: AppService | null, view: FoliateView, isAuthenticated: boolean = false, bookKey?: string) {
     super();
+    this.bookKey = bookKey || '_default';
     this.ttsWebClient = new WebSpeechClient(this);
     this.ttsEdgeClient = new EdgeTTSClient(this);
     // TODO: implement native TTS client for iOS and PC
     if (appService?.isAndroidApp) {
       this.ttsNativeClient = new NativeTTSClient(this);
+    }
+    // Initialize VieNeu-TTS client with bookKey
+    try {
+      this.ttsVieNeuClient = new VieNeuTTSClient({ bookKey: this.bookKey }, this);
+    } catch (error) {
+      console.warn('Failed to initialize VieNeu-TTS client:', error);
     }
     this.ttsClient = this.ttsWebClient;
     this.appService = appService;
@@ -60,6 +71,11 @@ export class TTSController extends EventTarget {
 
   async init() {
     const availableClients = [];
+    // Try to init VieNeu-TTS first (best for Vietnamese)
+    if (this.ttsVieNeuClient && (await this.ttsVieNeuClient.init())) {
+      availableClients.push(this.ttsVieNeuClient);
+      this.ttsVieNeuVoices = await this.ttsVieNeuClient.getAllVoices();
+    }
     if (await this.ttsEdgeClient.init()) {
       availableClients.push(this.ttsEdgeClient);
     }
@@ -319,6 +335,7 @@ export class TTSController extends EventTarget {
   }
 
   async setPrimaryLang(lang: string) {
+    if (this.ttsVieNeuClient?.initialized) this.ttsVieNeuClient.setPrimaryLang(lang);
     if (this.ttsEdgeClient.initialized) this.ttsEdgeClient.setPrimaryLang(lang);
     if (this.ttsWebClient.initialized) this.ttsWebClient.setPrimaryLang(lang);
     if (this.ttsNativeClient?.initialized) this.ttsNativeClient?.setPrimaryLang(lang);
@@ -331,23 +348,33 @@ export class TTSController extends EventTarget {
   }
 
   async getVoices(lang: string) {
+    const ttsVieNeuVoices = (await this.ttsVieNeuClient?.getVoices(lang)) ?? [];
     const ttsWebVoices = await this.ttsWebClient.getVoices(lang);
     const ttsEdgeVoices = await this.ttsEdgeClient.getVoices(lang);
     const ttsNativeVoices = (await this.ttsNativeClient?.getVoices(lang)) ?? [];
 
-    const voicesGroups = [...ttsNativeVoices, ...ttsEdgeVoices, ...ttsWebVoices];
+    const voicesGroups = [...ttsVieNeuVoices, ...ttsNativeVoices, ...ttsEdgeVoices, ...ttsWebVoices];
     return voicesGroups;
   }
 
   async setVoice(voiceId: string, lang: string) {
     this.state = 'setvoice-paused';
+
+    // Check VieNeu-TTS first (best for Vietnamese)
+    const useVieNeuTTS = !!this.ttsVieNeuVoices.find(
+      (voice) => (voiceId === '' || voice.id === voiceId) && !voice.disabled,
+    );
     const useEdgeTTS = !!this.ttsEdgeVoices.find(
       (voice) => (voiceId === '' || voice.id === voiceId) && !voice.disabled,
     );
     const useNativeTTS = !!this.ttsNativeVoices.find(
       (voice) => (voiceId === '' || voice.id === voiceId) && !voice.disabled,
     );
-    if (useEdgeTTS) {
+
+    if (useVieNeuTTS && this.ttsVieNeuClient) {
+      this.ttsClient = this.ttsVieNeuClient;
+      await this.ttsClient.setRate(this.ttsRate);
+    } else if (useEdgeTTS) {
       this.ttsClient = this.ttsEdgeClient;
       await this.ttsClient.setRate(this.ttsRate);
     } else if (useNativeTTS) {
@@ -398,6 +425,9 @@ export class TTSController extends EventTarget {
     }
     if (this.ttsEdgeClient.initialized) {
       await this.ttsEdgeClient.shutdown();
+    }
+    if (this.ttsVieNeuClient?.initialized) {
+      await this.ttsVieNeuClient.shutdown();
     }
     if (this.ttsNativeClient?.initialized) {
       await this.ttsNativeClient.shutdown();
