@@ -187,12 +187,19 @@ async function migrateCacheFile(bookKey: string, voice: string, cacheKey: string
 }
 
 // Synthesize audio via VieNeu-TTS
-async function synthesizeAudio(text: string, voice: string): Promise<Buffer> {
+async function synthesizeAudio(text: string, voice: string, apiKey?: string): Promise<Buffer> {
+  const headers: HeadersInit = {
+    'Content-Type': 'application/json',
+  };
+
+  // Add API key if provided
+  if (apiKey) {
+    headers['X-API-Key'] = apiKey;
+  }
+
   const response = await fetch(`${VIENEU_SERVER}/api/synthesize`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
+    headers,
     body: JSON.stringify({
       text,
       voice,
@@ -214,6 +221,9 @@ export async function POST(request: NextRequest) {
   try {
     const body: SynthesisRequest = await request.json();
     const { text, voice, bookKey } = body;
+
+    // Extract API key from request headers
+    const apiKey = request.headers.get('X-VieNeu-API-Key');
 
     if (!text || !voice) {
       return NextResponse.json(
@@ -252,7 +262,7 @@ export async function POST(request: NextRequest) {
     // Cache MISS - synthesize
     console.log(`✗ VieNeu-TTS Cache MISS: ${cacheKey.substring(0, 8)}... [${effectiveBookKey}/${voice}] - synthesizing...`);
 
-    const audioBuffer = await synthesizeAudio(text, voice);
+    const audioBuffer = await synthesizeAudio(text, voice, apiKey || undefined);
 
     // Save to cache with nested structure
     await cacheAudio(effectiveBookKey, voice, cacheKey, audioBuffer, { text, voice, bookKey: effectiveBookKey });

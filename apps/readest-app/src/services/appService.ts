@@ -258,6 +258,19 @@ export abstract class BaseAppService implements AppService {
       await this.saveSettings(settings);
     }
 
+    // Migrate VieNeu settings if not present
+    if (!settings.vieneu) {
+      settings.vieneu = {
+        enabled: true,
+        serverUrl: '/api/tts/vieneu',
+        apiKey: '',
+        currentBackbone: '',
+        currentCodec: '',
+        connectionStatus: 'unknown',
+      };
+      await this.saveSettings(settings);
+    }
+
     this.localBooksDir = settings.localBooksDir;
     return settings;
   }

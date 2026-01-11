@@ -61,3 +61,17 @@ export const saveSysSettings = async <K extends keyof SystemSettings>(
     await saveSettings(envConfig, settings);
   }
 };
+
+export const migrateVieNeuSettings = (settings: SystemSettings): SystemSettings => {
+  if (!settings.vieneu) {
+    settings.vieneu = {
+      enabled: true,
+      serverUrl: '/api/tts/vieneu',
+      apiKey: '',
+      currentBackbone: '',
+      currentCodec: '',
+      connectionStatus: 'unknown',
+    };
+  }
+  return settings;
+};

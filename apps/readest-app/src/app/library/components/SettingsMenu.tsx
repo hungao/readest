@@ -5,7 +5,7 @@ import { PiUserCircle, PiUserCircleCheck, PiGear } from 'react-icons/pi';
 import { PiSun, PiMoon } from 'react-icons/pi';
 import { TbSunMoon } from 'react-icons/tb';
 import { MdCloudSync } from 'react-icons/md';
-import { FiDatabase } from 'react-icons/fi';
+import { HiServer } from 'react-icons/hi';
 
 import { invoke, PermissionState } from '@tauri-apps/api/core';
 import { isTauriAppPlatform, isWebAppPlatform } from '@/services/environment';
@@ -30,7 +30,7 @@ import UserAvatar from '@/components/UserAvatar';
 import MenuItem from '@/components/MenuItem';
 import Quota from '@/components/Quota';
 import Menu from '@/components/Menu';
-import CacheSettings from './CacheSettings';
+import VieNeuSettings from './VieNeuSettings';
 
 interface SettingsMenuProps {
   setIsDropdownOpen?: (isOpen: boolean) => void;
@@ -63,7 +63,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
   const [savedBookCoverForLockScreen, setSavedBookCoverForLockScreen] = useState(
     settings.savedBookCoverForLockScreen || '',
   );
-  const [showCacheSettings, setShowCacheSettings] = useState(false);
+  const [showVieNeuSettings, setShowVieNeuSettings] = useState(false);
   const iconSize = useResponsiveSize(16);
 
   const { stats, hasActiveTransfers, setIsTransferQueueOpen } = useTransferQueue();
@@ -187,11 +187,6 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
     setSettingsDialogOpen(true);
   };
 
-  const openCacheSettings = () => {
-    setIsDropdownOpen?.(false);
-    setShowCacheSettings(true);
-  };
-
   const handleSetSavedBookCoverForLockScreen = async () => {
     if (!(await requestStoragePermission()) && appService?.distChannel === 'readest') return;
 
@@ -243,6 +238,7 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
       className={clsx(
         'settings-menu dropdown-content no-triangle',
         'z-20 mt-2 max-w-[90vw] shadow-2xl',
+        showVieNeuSettings && 'hidden',
       )}
       onCancel={() => setIsDropdownOpen?.(false)}
     >
@@ -355,10 +351,15 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
       />
       <MenuItem label={_('Settings')} Icon={PiGear} onClick={openSettingsDialog} />
       <MenuItem
-        label={_('TTS Cache Settings')}
-        Icon={FiDatabase}
-        description={_('Manage VieNeu-TTS cache')}
-        onClick={openCacheSettings}
+        label={_('VieNeu-TTS Server Settings')}
+        Icon={HiServer}
+        description={_('Configure server, model, and authentication')}
+        onClick={() => {
+          console.log('VieNeu Settings clicked, current state:', showVieNeuSettings);
+          setShowVieNeuSettings(true);
+          console.log('VieNeu Settings state set to true');
+          // Don't close dropdown yet - modal needs SettingsMenu to stay mounted
+        }}
       />
       {appService?.canCustomizeRootDir && (
         <>
@@ -396,16 +397,31 @@ const SettingsMenu: React.FC<SettingsMenuProps> = ({ setIsDropdownOpen }) => {
         onClick={toggleTelemetry}
       />
     </Menu>
-    {showCacheSettings && (
-      <dialog open className='modal modal-open'>
-        <div className='modal-box max-w-4xl'>
-          <CacheSettings onClose={() => setShowCacheSettings(false)} />
-        </div>
-        <form method='dialog' className='modal-backdrop' onClick={() => setShowCacheSettings(false)}>
-          <button>close</button>
-        </form>
-      </dialog>
-    )}
+    {(() => {
+      console.log('SettingsMenu render - showVieNeuSettings:', showVieNeuSettings);
+      return showVieNeuSettings && (
+        <dialog open className='modal modal-open'>
+          <div className='modal-box max-w-4xl'>
+            <VieNeuSettings
+              onClose={() => {
+                setShowVieNeuSettings(false);
+                setIsDropdownOpen?.(false);
+              }}
+            />
+          </div>
+          <form
+            method='dialog'
+            className='modal-backdrop'
+            onClick={() => {
+              setShowVieNeuSettings(false);
+              setIsDropdownOpen?.(false);
+            }}
+          >
+            <button>close</button>
+          </form>
+        </dialog>
+      );
+    })()}
   </>
   );
 };

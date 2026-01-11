@@ -3,9 +3,11 @@ import { TTSGranularity, TTSVoice, TTSVoicesGroup } from './types';
 import { parseSSMLMarks } from '@/utils/ssml';
 import { TTSController } from './TTSController';
 import { TTSUtils } from './TTSUtils';
+import { useSettingsStore } from '@/store/settingsStore';
 
 // VieNeu-TTS voices from config.yaml
-const VIENEU_VOICES = {
+// All 10 voices (for GPU models that support all voices)
+const VIENEU_VOICES_ALL = {
   'vi-VN': [
     'Vĩnh (nam miền Nam)',
     'Bình (nam miền Bắc)',
@@ -20,8 +22,21 @@ const VIENEU_VOICES = {
   ],
 };
 
+// Only 6 voices with reference samples (for GGUF models)
+const VIENEU_VOICES_GGUF = {
+  'vi-VN': [
+    'Vĩnh (nam miền Nam)',
+    'Bình (nam miền Bắc)',
+    'Ngọc (nữ miền Bắc)',
+    'Đoan (nữ miền Nam)',
+    'Ly (nữ miền Bắc)',
+    'Tuyên (nam miền Bắc)',
+  ],
+};
+
 interface VieNeuTTSConfig {
   serverUrl?: string;
+  apiKey?: string;
   timeout?: number;
   bookKey?: string;
 }
@@ -38,6 +53,7 @@ export class VieNeuTTSClient implements TTSClient {
   #rate = 1.0;
   #pitch = 1.0;
   #serverUrl: string;
+  #apiKey: string;
   #timeout: number;
   #bookKey: string;
 
@@ -49,13 +65,24 @@ export class VieNeuTTSClient implements TTSClient {
   constructor(config?: VieNeuTTSConfig, controller?: TTSController) {
     this.controller = controller;
     this.#serverUrl = config?.serverUrl || '/api/tts/vieneu';
+    this.#apiKey = config?.apiKey || '';
     this.#timeout = config?.timeout || 30000;
     this.#bookKey = config?.bookKey || '_default';
     this.#voices = this.#generateVoiceList();
   }
 
   #generateVoiceList(): TTSVoice[] {
-    return Object.entries(VIENEU_VOICES).flatMap(([lang, voices]) => {
+    // Check if current backbone is GGUF
+    const { settings } = useSettingsStore.getState();
+    const currentBackbone = settings.vieneu?.currentBackbone || '';
+    const isGGUF = currentBackbone.toLowerCase().includes('gguf');
+
+    // Use appropriate voice list based on model type
+    // GGUF models only support 6 voices with reference samples in config.yaml
+    // GPU models support all 10 voices
+    const voiceList = isGGUF ? VIENEU_VOICES_GGUF : VIENEU_VOICES_ALL;
+
+    return Object.entries(voiceList).flatMap(([lang, voices]) => {
       return voices.map((name) => ({
         id: name,
         name: name,
@@ -66,6 +93,13 @@ export class VieNeuTTSClient implements TTSClient {
 
   async init(): Promise<boolean> {
     try {
+      // Load VieNeu settings from store
+      const { settings } = useSettingsStore.getState();
+      if (settings.vieneu) {
+        this.#serverUrl = settings.vieneu.serverUrl || this.#serverUrl;
+        this.#apiKey = settings.vieneu.apiKey || '';
+      }
+
       // Check if server is available by making a simple request
       const response = await fetch(this.#serverUrl, {
         method: 'GET',
@@ -182,11 +216,18 @@ export class VieNeuTTSClient implements TTSClient {
   }
 
   async #synthesize(text: string, voiceId: string): Promise<Blob> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add API key if configured
+    if (this.#apiKey) {
+      headers['X-VieNeu-API-Key'] = this.#apiKey;
+    }
+
     const response = await fetch(this.#serverUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify({
         text: text,
         voice: voiceId,
@@ -196,6 +237,9 @@ export class VieNeuTTSClient implements TTSClient {
     });
 
     if (!response.ok) {
+      if (response.status === 401) {
+        throw new Error('VieNeu-TTS authentication failed. Please check API key in settings.');
+      }
       throw new Error(`VieNeu-TTS synthesis failed: ${response.status} ${response.statusText}`);
     }
 
@@ -271,6 +315,9 @@ export class VieNeuTTSClient implements TTSClient {
   }
 
   async getAllVoices(): Promise<TTSVoice[]> {
+    // Regenerate voice list to reflect current backbone model
+    this.#voices = this.#generateVoiceList();
+
     this.#voices.forEach((voice) => {
       voice.disabled = !this.initialized;
     });

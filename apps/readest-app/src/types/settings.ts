@@ -39,6 +39,15 @@ export interface KOSyncSettings {
   strategy: KOSyncStrategy;
 }
 
+export interface VieNeuSettings {
+  enabled: boolean;
+  serverUrl: string;
+  apiKey: string;
+  currentBackbone: string;
+  currentCodec: string;
+  connectionStatus: 'unknown' | 'connected' | 'disconnected' | 'error';
+}
+
 export interface SystemSettings {
   version: number;
   localBooksDir: string;
@@ -71,6 +80,7 @@ export interface SystemSettings {
   opdsCatalogs: OPDSCatalog[];
 
   kosync: KOSyncSettings;
+  vieneu: VieNeuSettings;
 
   lastSyncedAtBooks: number;
   lastSyncedAtConfigs: number;
